@@ -1,0 +1,6 @@
+{
+  "name": "Jadwal Injeksi & Balance Cairan ICU RSUD Blambangan",
+  "description": "Aplikasi rekam medis dan pemantauan pasien ICU real-time: jadwal terapi injeksi, balance cairan 24 jam dengan kalkulasi IWL otomatis, kalkulator syringe/infusion pump, dan cetak label operan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

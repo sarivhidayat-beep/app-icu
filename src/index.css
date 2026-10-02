@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+/* Hilangkan panah spinner pada input number */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Pengaturan Khusus untuk Cetak / Print Operan */
+@media print {
+  @page {
+    margin: 1cm;
+  }
+  body {
+    background-color: white !important;
+  }
+  header,
+  aside,
+  #historyNotice,
+  .print-hidden,
+  #tabButtons {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 15px !important;
+  }
+  section {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 20px !important;
+    background: transparent !important;
+  }
+  
+  input:not([type="checkbox"]),
+  textarea,
+  select {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    font-size: 10pt !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+  
+  textarea {
+    resize: none !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  th,
+  td {
+    border: 1px solid #64748b !important;
+    padding: 6px !important;
+  }
+  
+  .print-show {
+    display: block !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Khusus Print Mode Label Pump */
+@media print {
+  body.print-mode-label > #root {
+    display: none !important;
+  }
+  body.print-mode-label #printLabelArea {
+    display: flex !important;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  body.print-mode-label {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Khusus Print Mode Label Spuit */
+@media print {
+  body.print-mode-syringe > #root {
+    display: none !important;
+  }
+  body.print-mode-syringe #printSyringeArea {
+    display: flex !important;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body.print-mode-syringe {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
