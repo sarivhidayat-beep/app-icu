@@ -12,6 +12,10 @@ interface SidebarProps {
   onCopyPrevDay: () => void;
   onUndoCopy: () => void;
   undoSeconds: number | null;
+  onOpenShiftPrintModal?: (
+    shift: 'pagi' | 'sore' | 'malam' | 'all',
+    scope?: 'current' | 'all'
+  ) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -24,10 +28,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCopyPrevDay,
   onUndoCopy,
   undoSeconds,
+  onOpenShiftPrintModal,
 }) => {
   return (
-    <aside className="w-full md:w-64 bg-white rounded-xl shadow-sm border border-slate-200 p-4 shrink-0 h-fit md:sticky md:top-24 md:max-h-[calc(100vh-7rem)] overflow-y-auto custom-scrollbar z-30">
-      <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+    <aside className="w-full md:w-64 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 shrink-0 h-fit md:sticky md:top-24 md:max-h-[calc(100vh-7rem)] overflow-y-auto custom-scrollbar z-30 transition-colors">
+      <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
         Daftar Ruangan / Bed
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 gap-2">
@@ -43,8 +48,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onSelectBed(bed)}
               className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition border cursor-pointer group ${
                 isSelected
-                  ? 'bg-teal-600 text-white border-teal-600 shadow-md transform scale-[1.02]'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-teal-400 shadow-sm'
+                  ? 'bg-teal-600 dark:bg-teal-700 text-white border-teal-600 dark:border-teal-700 shadow-md transform scale-[1.02]'
+                  : 'bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500 shadow-sm'
               }`}
             >
               <span className="flex items-center gap-2 truncate max-w-[50%]">
@@ -52,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`fa-solid fa-bed shrink-0 ${
                     isSelected
                       ? 'text-teal-200'
-                      : 'text-slate-400 group-hover:text-teal-400'
+                      : 'text-slate-400 dark:text-slate-500 group-hover:text-teal-400'
                   }`}
                 ></i>
                 <span className="truncate">{bed}</span>
@@ -62,10 +67,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={patientName || 'Bed Kosong'}
                   className={`text-[10px] px-2 py-0.5 rounded font-bold truncate max-w-[85px] sm:max-w-[100px] ${
                     isSelected
-                      ? 'bg-teal-500 text-white'
+                      ? 'bg-teal-500 dark:bg-teal-600 text-white'
                       : patientName
-                      ? 'bg-slate-100 text-slate-700'
-                      : 'bg-slate-100 text-slate-400 italic'
+                      ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 italic'
                   }`}
                 >
                   {patientName || 'Kosong'}
@@ -76,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       e.stopPropagation();
                       onDeleteExtraBed(bed);
                     }}
-                    className="text-slate-300 hover:text-red-500 px-1 py-0.5 hover:bg-red-50 rounded transition flex items-center justify-center cursor-pointer"
+                    className="text-slate-300 hover:text-red-500 dark:hover:text-red-400 px-1 py-0.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition flex items-center justify-center cursor-pointer"
                     title="Hapus Bed"
                   >
                     <i className="fa-solid fa-times"></i>
@@ -91,16 +96,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Tombol Tambah Extra Bed */}
       <button
         onClick={onOpenBedModal}
-        className="w-full mt-3 text-xs border-2 border-dashed border-slate-300 text-slate-500 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-400 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer"
+        className="w-full mt-3 text-xs border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-teal-50 dark:hover:bg-slate-800 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-400 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer"
       >
         <i className="fa-solid fa-plus"></i>
         <span>Tambah Extra Bed</span>
       </button>
 
-      <div className="mt-6 pt-4 border-t border-slate-100 space-y-2">
+      <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        {onOpenShiftPrintModal && (
+          <button
+            onClick={() => onOpenShiftPrintModal('pagi', 'all')}
+            className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            title="Cetak seluruh etiket spuit pasien di semua ruangan berdasarkan shift (Pagi, Sore, Malam)"
+          >
+            <i className="fa-solid fa-print"></i>
+            <span>Cetak Spuit Semua Pasien</span>
+          </button>
+        )}
+
         <button
           onClick={onCopyPrevDay}
-          className="w-full text-xs bg-slate-50 hover:bg-teal-50 text-teal-700 font-semibold py-2.5 px-3 rounded-lg border border-slate-200 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+          className="w-full text-xs bg-slate-50 dark:bg-slate-800/70 hover:bg-teal-50 dark:hover:bg-slate-800 text-teal-700 dark:text-teal-300 font-semibold py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
         >
           <i className="fa-solid fa-copy"></i>
           <span>Salin Data Kemarin</span>
@@ -109,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {undoSeconds !== null && (
           <button
             onClick={onUndoCopy}
-            className="w-full text-xs bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 px-3 rounded-lg border border-red-200 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer animate-pulse"
+            className="w-full text-xs bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-semibold py-2.5 px-3 rounded-lg border border-red-200 dark:border-red-800 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer animate-pulse"
           >
             <i className="fa-solid fa-rotate-left"></i>
             <span>Batal Salin ({undoSeconds}s)</span>

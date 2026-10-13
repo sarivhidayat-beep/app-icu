@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { PumpLabelData } from './PumpCalculator';
 
 export interface SyringeLabelItem {
@@ -20,10 +21,12 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
   pumpLabelData,
   syringeLabels,
 }) => {
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <>
       {/* Container for Pump Label */}
-      <div id="printLabelArea" className="hidden">
+      <div id="printLabelArea">
         {pumpLabelData && (
           <div
             style={{
@@ -39,6 +42,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
               display: 'flex',
               flexDirection: 'column',
               background: 'white',
+              color: 'black',
               pageBreakInside: 'avoid',
             }}
           >
@@ -50,6 +54,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                 borderBottom: '2px solid black',
                 paddingBottom: '3px',
                 fontWeight: 'bold',
+                color: 'black',
               }}
             >
               LABEL PUMP ICU
@@ -61,6 +66,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 flexGrow: 1,
+                color: 'black',
               }}
             >
               <div>
@@ -92,6 +98,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                   textAlign: 'center',
                   fontSize: '10pt',
                   background: '#f8fafc',
+                  color: 'black',
                 }}
               >
                 <strong>
@@ -103,7 +110,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
               </div>
 
               {pumpLabelData.titrationRows.length > 0 && (
-                <div style={{ marginTop: '4px', fontSize: '7.5pt' }}>
+                <div style={{ marginTop: '4px', fontSize: '7.5pt', color: 'black' }}>
                   <strong>
                     Tabel Titrasi ({pumpLabelData.doseUnitName}{' '}
                     {pumpLabelData.timeName}):
@@ -114,6 +121,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                       borderCollapse: 'collapse',
                       marginTop: '3px',
                       fontSize: '7.5pt',
+                      color: 'black',
                     }}
                   >
                     <thead>
@@ -123,6 +131,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                             border: '1px solid #64748b',
                             padding: '2px 4px',
                             textAlign: 'center',
+                            color: 'black',
                           }}
                         >
                           Dosis
@@ -132,6 +141,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                             border: '1px solid #64748b',
                             padding: '2px 4px',
                             textAlign: 'center',
+                            color: 'black',
                           }}
                         >
                           Rate (cc/jam)
@@ -146,6 +156,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                               border: '1px solid #64748b',
                               padding: '1px 4px',
                               textAlign: 'center',
+                              color: 'black',
                             }}
                           >
                             {tr.dose}
@@ -156,6 +167,7 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
                               padding: '1px 4px',
                               textAlign: 'center',
                               fontWeight: 'bold',
+                              color: 'black',
                             }}
                           >
                             {tr.rate}
@@ -198,98 +210,118 @@ export const PrintTemplates: React.FC<PrintTemplatesProps> = ({
       </div>
 
       {/* Container for Syringe Label (Supports Single or Batch Printing) */}
-      <div id="printSyringeArea" className="hidden">
-        {syringeLabels &&
-          syringeLabels.map((lbl, idx) => (
-            <div
-              key={idx}
-              style={{
-                width: '53mm',
-                height: '18mm',
-                padding: '1mm 2mm',
-                fontFamily: 'sans-serif',
-                boxSizing: 'border-box',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                background: 'white',
-                color: 'black',
-                overflow: 'hidden',
-                margin: 0,
-                pageBreakAfter: idx < syringeLabels.length - 1 ? 'always' : 'auto',
-              }}
-            >
+      <div id="printSyringeArea">
+        {syringeLabels && (
+          <>
+            <style>{`
+              @media print {
+                @page {
+                  size: 55mm 20mm;
+                  margin: 0 !important;
+                }
+              }
+            `}</style>
+            {syringeLabels.map((lbl, idx) => (
               <div
+                key={idx}
                 style={{
-                  fontSize: '6.5pt',
-                  fontWeight: 'bold',
-                  borderBottom: '1px solid black',
-                  paddingBottom: '1px',
-                  marginBottom: '1px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <span
-                  style={{
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: '65%',
-                  }}
-                >
-                  {lbl.patientName.toUpperCase()}
-                </span>
-                <span>RM: {lbl.patientRM}</span>
-              </div>
-              <div
-                style={{
-                  flexGrow: 1,
+                  width: '53mm',
+                  height: '18mm',
+                  maxHeight: '18mm',
+                  padding: '1mm 2mm',
+                  fontFamily: 'sans-serif',
+                  boxSizing: 'border-box',
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  lineHeight: 1.1,
+                  justifyContent: 'space-between',
+                  background: 'white',
+                  color: 'black',
+                  overflow: 'hidden',
+                  margin: 0,
+                  pageBreakAfter: idx < syringeLabels.length - 1 ? 'always' : 'auto',
+                  breakAfter: idx < syringeLabels.length - 1 ? 'page' : 'auto',
                 }}
               >
-                <span
-                  style={{
-                    fontSize: '8.5pt',
-                    fontWeight: 900,
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {lbl.medName}
-                </span>
-                <span
+                <div
                   style={{
                     fontSize: '6.5pt',
                     fontWeight: 'bold',
-                    marginTop: '1px',
+                    borderBottom: '1px solid black',
+                    paddingBottom: '1px',
+                    marginBottom: '1px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    color: 'black',
                   }}
                 >
-                  {lbl.medDose} ({lbl.medRoute})
-                </span>
+                  <span
+                    style={{
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '65%',
+                      color: 'black',
+                    }}
+                  >
+                    {lbl.patientName.toUpperCase()}
+                  </span>
+                  <span style={{ color: 'black' }}>RM: {lbl.patientRM}</span>
+                </div>
+                <div
+                  style={{
+                    flexGrow: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    lineHeight: 1.1,
+                    color: 'black',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '8.5pt',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      color: 'black',
+                    }}
+                  >
+                    {lbl.medName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '6.5pt',
+                      fontWeight: 'bold',
+                      marginTop: '1px',
+                      color: 'black',
+                    }}
+                  >
+                    {lbl.medDose} ({lbl.medRoute})
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: '5.5pt',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    borderTop: '1px dashed black',
+                    paddingTop: '1px',
+                    marginTop: '1px',
+                    color: 'black',
+                  }}
+                >
+                  <span style={{ color: 'black' }}>
+                    Tgl: {lbl.dateStr} Jam: {lbl.timeStr}
+                  </span>
+                  <span style={{ color: 'black' }}>Sign: _______</span>
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: '5.5pt',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  borderTop: '1px dashed black',
-                  paddingTop: '1px',
-                  marginTop: '1px',
-                }}
-              >
-                <span>
-                  Tgl: {lbl.dateStr} Jam: {lbl.timeStr}
-                </span>
-                <span>Sign: _______</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </>
+        )}
       </div>
-    </>
+    </>,
+    document.body
   );
 };

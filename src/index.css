@@ -1,5 +1,43 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #090d16;
+  color: #f1f5f9;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+html.dark textarea,
+html.dark select {
+  color: #f1f5f9;
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8;
+}
+
+html.dark option {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+select {
+  touch-action: manipulation;
+}
+
+.modal-backdrop-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -15,6 +53,16 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+
+  .dark .custom-scrollbar::-webkit-scrollbar-track {
+    background: #1e293b;
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #475569;
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
 }
 
 /* Hilangkan panah spinner pada input number */
@@ -27,31 +75,49 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Pengaturan Khusus untuk Cetak / Print Operan */
+/* =========================================================
+   PENGATURAN CETAK (PRINT) LEMBAR OPERAN
+   ========================================================= */
+
+@media screen {
+  #printSyringeArea,
+  #printLabelArea {
+    display: none !important;
+  }
+}
+
 @media print {
   @page {
-    margin: 1cm;
+    margin: 1mm !important;
+    size: auto;
   }
   body {
     background-color: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   header,
   aside,
   #historyNotice,
   .print-hidden,
-  #tabButtons {
+  #tabButtons,
+  #printSyringeArea,
+  #printLabelArea {
     display: none !important;
+    visibility: hidden !important;
   }
   main {
     margin: 0 !important;
-    padding: 0 !important;
-    gap: 15px !important;
+    padding: 1mm !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
   section {
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
-    margin-bottom: 20px !important;
+    margin-bottom: 12px !important;
     background: transparent !important;
   }
   
@@ -79,11 +145,23 @@ input[type="number"] {
   th,
   td {
     border: 1px solid #64748b !important;
-    padding: 6px !important;
+    padding: 4px 6px !important;
   }
   
   .print-show {
     display: block !important;
+  }
+
+  /* Card styling pada cetak operan untuk Diet & Infus Aktif */
+  .diet-section,
+  .infusion-section {
+    border: 1px solid #64748b !important;
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+    margin-bottom: 8px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background: white !important;
   }
 
   * {
@@ -92,38 +170,3 @@ input[type="number"] {
   }
 }
 
-/* Khusus Print Mode Label Pump */
-@media print {
-  body.print-mode-label > #root {
-    display: none !important;
-  }
-  body.print-mode-label #printLabelArea {
-    display: flex !important;
-    justify-content: center;
-    align-items: flex-start;
-  }
-  body.print-mode-label {
-    background: white !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-}
-
-/* Khusus Print Mode Label Spuit */
-@media print {
-  body.print-mode-syringe > #root {
-    display: none !important;
-  }
-  body.print-mode-syringe #printSyringeArea {
-    display: flex !important;
-    justify-content: flex-start;
-    align-items: flex-start;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-  body.print-mode-syringe {
-    background: white !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-}

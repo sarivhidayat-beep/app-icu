@@ -5,6 +5,8 @@ import {
   PatientInfo,
   Medication,
   CloudStatusType,
+  PatientDietItem,
+  ActiveInfusionItem,
 } from './types';
 import {
   DEFAULT_BEDS,
@@ -24,6 +26,8 @@ import {
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { PatientInfoCard } from './components/PatientInfoCard';
+import { DietSection } from './components/DietSection';
+import { InfusionSection } from './components/InfusionSection';
 import { InjectionSchedule } from './components/InjectionSchedule';
 import { FluidBalanceTable } from './components/FluidBalanceTable';
 import { PumpCalculator, PumpLabelData } from './components/PumpCalculator';
@@ -35,8 +39,13 @@ import {
   DialogModal,
   DialogConfig,
   SyringePrintModal,
+  ShiftSyringePrintModal,
 } from './components/Modals';
-import { PrintTemplates, SyringeLabelItem } from './components/PrintTemplates';
+import {
+  printSyringeLabelsIsolated,
+  printPumpLabelIsolated,
+  SyringeLabelPrintData,
+} from './utils/printLabel';
 
 function getLocalDateString() {
   const now = new Date();
@@ -56,6 +65,30 @@ export default function App() {
   const [dayBeds, setDayBeds] = useState<DayBedsData>({});
   const [cloudStatus, setCloudStatus] = useState<CloudStatusType>('connecting');
   const [activeTab, setActiveTab] = useState<'schedule' | 'balance' | 'pump'>('schedule');
+
+  // Dark Mode Theme State & Persistence
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('icu_theme');
+      if (saved) return saved === 'dark';
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('icu_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('icu_theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => !prev);
+  };
 
   // Undo copy state
   const [undoBackup, setUndoBackup] = useState<DayBedsData | null>(null);
@@ -93,15 +126,24 @@ export default function App() {
     message: '',
   });
 
-  // Print states
-  const [pumpLabelData, setPumpLabelData] = useState<PumpLabelData | null>(null);
-  const [syringeLabels, setSyringeLabels] = useState<SyringeLabelItem[] | null>(null);
+  // Syringe Print Modal state
   const [syringeModalState, setSyringeModalState] = useState<{
     isOpen: boolean;
     med: Medication | null;
   }>({
     isOpen: false,
     med: null,
+  });
+
+  // Shift Syringe Print Modal state
+  const [shiftPrintModalState, setShiftPrintModalState] = useState<{
+    isOpen: boolean;
+    shift: 'pagi' | 'sore' | 'malam' | 'all';
+    scope: 'current' | 'all';
+  }>({
+    isOpen: false,
+    shift: 'pagi',
+    scope: 'current',
   });
 
   // Helper for quick alert dialog
@@ -211,6 +253,13 @@ export default function App() {
   );
 
   // Patient info updates
+  const handleAddCustomDoctor = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    addCustomDoctor(trimmed);
+    setDoctorsList((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+  };
+
   const handleUpdatePatient = (updated: Partial<PatientInfo>) => {
     const existing = currentBedData;
     const newPatient = {
@@ -218,8 +267,19 @@ export default function App() {
       ...updated,
     };
 
-    // If doctor updated, sync with custom doctors list
-    if (updated.doctor) {
+    // If doctors array updated, sync doctor string and custom doctors list
+    if (updated.doctors && updated.doctors.length > 0) {
+      newPatient.doctor = updated.doctors.join(', ');
+      updated.doctors.forEach((d) => {
+        const trimmed = d.trim();
+        if (trimmed) {
+          addCustomDoctor(trimmed);
+          setDoctorsList((prev) =>
+            prev.includes(trimmed) ? prev : [...prev, trimmed]
+          );
+        }
+      });
+    } else if (updated.doctor) {
       updated.doctor.split(',').forEach((d) => {
         const trimmed = d.trim();
         if (trimmed) {
@@ -239,9 +299,22 @@ export default function App() {
   };
 
   // Medication handlers
+  const handleToggleStopMed = (medIndex: number) => {
+    const meds = [...currentBedData.medications];
+    const med = { ...meds[medIndex] };
+    med.isStopped = !med.isStopped;
+    meds[medIndex] = med;
+    const newBedData = {
+      ...currentBedData,
+      medications: meds,
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
   const handleToggleMedHour = (medIndex: number, hour: string) => {
     const meds = [...currentBedData.medications];
     const med = { ...meds[medIndex] };
+    if (med.isStopped) return; // Jangan izinkan check jika obat di-stop
     const checked = med.checkedHours || [];
 
     if (checked.includes(hour)) {
@@ -509,11 +582,21 @@ export default function App() {
         setUndoBackup(JSON.parse(JSON.stringify(dayBeds)));
 
         const copied: DayBedsData = JSON.parse(JSON.stringify(prevData));
-        // Reset check hours for copied meds
+        // Reset check hours for copied meds, diets, and infusions
         Object.keys(copied).forEach((b) => {
           if (copied[b]?.medications) {
             copied[b].medications.forEach((m) => {
               m.checkedHours = [];
+            });
+          }
+          if (copied[b]?.diets) {
+            copied[b].diets.forEach((d) => {
+              d.checkedHours = [];
+            });
+          }
+          if (copied[b]?.infusions) {
+            copied[b].infusions.forEach((inf) => {
+              inf.checkedHours = [];
             });
           }
         });
@@ -557,6 +640,108 @@ export default function App() {
     );
   };
 
+  // Diet Handlers
+  const handleAddDiet = (diet: Omit<PatientDietItem, 'id'>) => {
+    const newId = 'diet_' + Date.now();
+    const newDiet: PatientDietItem = { ...diet, id: newId };
+    const newBedData = {
+      ...currentBedData,
+      diets: [...(currentBedData.diets || []), newDiet],
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleUpdateDiet = (id: string, updated: Partial<PatientDietItem>) => {
+    const newBedData = {
+      ...currentBedData,
+      diets: (currentBedData.diets || []).map((d) =>
+        d.id === id ? { ...d, ...updated } : d
+      ),
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleDeleteDiet = (id: string) => {
+    const newBedData = {
+      ...currentBedData,
+      diets: (currentBedData.diets || []).filter((d) => d.id !== id),
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleToggleDietHour = (id: string, hour: string) => {
+    const newBedData = {
+      ...currentBedData,
+      diets: (currentBedData.diets || []).map((d) => {
+        if (d.id !== id) return d;
+        const currentChecked = d.checkedHours || [];
+        const isChecked = currentChecked.includes(hour);
+        return {
+          ...d,
+          checkedHours: isChecked
+            ? currentChecked.filter((h) => h !== hour)
+            : [...currentChecked, hour],
+        };
+      }),
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleReorderDiets = (newDiets: PatientDietItem[]) => {
+    const newBedData = {
+      ...currentBedData,
+      diets: newDiets,
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  // Infusion Handlers
+  const handleAddInfusion = (infusion: Omit<ActiveInfusionItem, 'id'>) => {
+    const newId = 'inf_' + Date.now();
+    const newInfusion: ActiveInfusionItem = { ...infusion, id: newId };
+    const newBedData = {
+      ...currentBedData,
+      infusions: [...(currentBedData.infusions || []), newInfusion],
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleUpdateInfusion = (id: string, updated: Partial<ActiveInfusionItem>) => {
+    const newBedData = {
+      ...currentBedData,
+      infusions: (currentBedData.infusions || []).map((inf) =>
+        inf.id === id ? { ...inf, ...updated } : inf
+      ),
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleDeleteInfusion = (id: string) => {
+    const newBedData = {
+      ...currentBedData,
+      infusions: (currentBedData.infusions || []).filter((inf) => inf.id !== id),
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
+  const handleToggleInfusionHour = (id: string, hour: string) => {
+    const newBedData = {
+      ...currentBedData,
+      infusions: (currentBedData.infusions || []).map((inf) => {
+        if (inf.id !== id) return inf;
+        const currentChecked = inf.checkedHours || [];
+        const isChecked = currentChecked.includes(hour);
+        return {
+          ...inf,
+          checkedHours: isChecked
+            ? currentChecked.filter((h) => h !== hour)
+            : [...currentChecked, hour],
+        };
+      }),
+    };
+    saveBedChanges(currentBed, newBedData);
+  };
+
   // Print Handlers
   const handlePrintOperan = () => {
     // Auto resize textareas for print layout
@@ -568,19 +753,16 @@ export default function App() {
   };
 
   const handlePrintPumpLabel = (labelData: PumpLabelData) => {
-    setPumpLabelData(labelData);
-    document.body.classList.add('print-mode-label');
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('print-mode-label');
-      }, 500);
-    }, 100);
+    printPumpLabelIsolated(labelData);
   };
 
   const handlePrintSyringeLabel = (medIndex: number) => {
     const med = currentBedData.medications[medIndex];
     if (!med) return;
+    if (med.isStopped) {
+      showAlert('Obat Di-Stop', 'Obat ini berstatus DI-STOP sehingga tidak dapat dicetak pada label spuit.');
+      return;
+    }
     setSyringeModalState({
       isOpen: true,
       med,
@@ -598,27 +780,20 @@ export default function App() {
       year: 'numeric',
     });
 
-    setSyringeLabels([
-      {
-        patientName: currentBedData.patient.name.trim() || '.......................',
-        patientRM: currentBedData.patient.rm.trim() || '......',
-        medName: med.name,
-        medDose: med.dose,
-        medRoute: med.route,
-        dateStr,
-        timeStr,
-      },
-    ]);
+    const item: SyringeLabelPrintData = {
+      patientName: currentBedData.patient.name.trim() || '.......................',
+      patientRM: currentBedData.patient.rm.trim() || '......',
+      medName: med.name,
+      medDose: med.dose,
+      medRoute: med.route,
+      frequency: med.frequency,
+      notes: med.notes,
+      dateStr,
+      timeStr,
+    };
 
     setSyringeModalState({ isOpen: false, med: null });
-
-    document.body.classList.add('print-mode-syringe');
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('print-mode-syringe');
-      }, 500);
-    }, 100);
+    printSyringeLabelsIsolated([item]);
   };
 
   const handlePrintSyringeBatch = (timeList: string[]) => {
@@ -632,26 +807,35 @@ export default function App() {
       year: 'numeric',
     });
 
-    const batchList: SyringeLabelItem[] = timeList.map((timeStr) => ({
+    const batchList: SyringeLabelPrintData[] = timeList.map((timeStr) => ({
       patientName: currentBedData.patient.name.trim() || '.......................',
       patientRM: currentBedData.patient.rm.trim() || '......',
       medName: med.name,
       medDose: med.dose,
       medRoute: med.route,
+      frequency: med.frequency,
+      notes: med.notes,
       dateStr,
       timeStr,
     }));
 
-    setSyringeLabels(batchList);
     setSyringeModalState({ isOpen: false, med: null });
+    printSyringeLabelsIsolated(batchList);
+  };
 
-    document.body.classList.add('print-mode-syringe');
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('print-mode-syringe');
-      }, 500);
-    }, 100);
+  const handleOpenShiftPrintModal = (
+    shift: 'pagi' | 'sore' | 'malam' | 'all' = 'pagi',
+    scope: 'current' | 'all' = 'current'
+  ) => {
+    setShiftPrintModalState({
+      isOpen: true,
+      shift,
+      scope,
+    });
+  };
+
+  const handlePrintShiftLabels = (labels: SyringeLabelPrintData[]) => {
+    printSyringeLabelsIsolated(labels);
   };
 
   const todayStr = getLocalDateString();
@@ -665,11 +849,14 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800 antialiased">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200">
       <Header
         currentDateStr={currentDateStr}
         onDateChange={setCurrentDateStr}
         cloudStatus={cloudStatus}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
+        onOpenShiftPrintModal={handleOpenShiftPrintModal}
       />
 
       <div className="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col md:flex-row gap-5">
@@ -683,6 +870,7 @@ export default function App() {
           onCopyPrevDay={handleCopyPrevDay}
           onUndoCopy={handleUndoCopy}
           undoSeconds={undoSeconds}
+          onOpenShiftPrintModal={handleOpenShiftPrintModal}
         />
 
         <main className="flex-1 flex flex-col gap-5 min-w-0">
@@ -700,10 +888,10 @@ export default function App() {
           {isHistoryView && (
             <div
               id="historyNotice"
-              className="bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-lg text-amber-800 text-sm flex items-center justify-between shadow-sm"
+              className="bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-500 p-3 rounded-r-lg text-amber-800 dark:text-amber-200 text-sm flex items-center justify-between shadow-sm"
             >
               <div className="flex items-center gap-2">
-                <i className="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                <i className="fa-solid fa-clock-rotate-left text-amber-600 dark:text-amber-400"></i>
                 <span>
                   Anda sedang melihat <strong>Riwayat Rekam Medis Tanggal</strong>:{' '}
                   <b>{currentDateStr}</b>
@@ -716,24 +904,46 @@ export default function App() {
           <PatientInfoCard
             currentBed={currentBed}
             patient={currentBedData.patient}
+            currentDateStr={currentDateStr}
+            doctorsList={doctorsList}
+            onAddCustomDoctor={handleAddCustomDoctor}
             onUpdatePatient={handleUpdatePatient}
             onPrintOperan={handlePrintOperan}
             onOpenTransferModal={() => setIsTransferModalOpen(true)}
             onDischargePatient={handleDischargePatient}
           />
 
+          {/* Section Diet / Makanan & Infus Aktif */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 print:grid-cols-2 print:gap-3">
+            <DietSection
+              diets={currentBedData.diets || []}
+              onAddDiet={handleAddDiet}
+              onUpdateDiet={handleUpdateDiet}
+              onDeleteDiet={handleDeleteDiet}
+              onToggleDietHour={handleToggleDietHour}
+              onReorderDiets={handleReorderDiets}
+            />
+            <InfusionSection
+              infusions={currentBedData.infusions || []}
+              onAddInfusion={handleAddInfusion}
+              onUpdateInfusion={handleUpdateInfusion}
+              onDeleteInfusion={handleDeleteInfusion}
+              onToggleInfusionHour={handleToggleInfusionHour}
+            />
+          </div>
+
           {/* Main Action Tabs */}
-          <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">
             <div
               id="tabButtons"
-              className="flex border-b border-slate-200 bg-slate-50 print-hidden"
+              className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 rounded-t-xl overflow-hidden print-hidden"
             >
               <button
                 onClick={() => setActiveTab('schedule')}
                 className={`flex-1 py-3 px-2 sm:px-4 font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
                   activeTab === 'schedule'
-                    ? 'text-teal-700 border-b-2 border-teal-600 bg-white shadow-sm'
-                    : 'text-slate-500 hover:text-teal-700 border-b-2 border-transparent hover:bg-slate-100'
+                    ? 'text-teal-700 dark:text-teal-300 border-b-2 border-teal-600 dark:border-teal-400 bg-white dark:bg-slate-900 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 border-b-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <i className="fa-solid fa-syringe"></i>
@@ -744,8 +954,8 @@ export default function App() {
                 onClick={() => setActiveTab('balance')}
                 className={`flex-1 py-3 px-2 sm:px-4 font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
                   activeTab === 'balance'
-                    ? 'text-teal-700 border-b-2 border-teal-600 bg-white shadow-sm'
-                    : 'text-slate-500 hover:text-teal-700 border-b-2 border-transparent hover:bg-slate-100'
+                    ? 'text-teal-700 dark:text-teal-300 border-b-2 border-teal-600 dark:border-teal-400 bg-white dark:bg-slate-900 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 border-b-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <i className="fa-solid fa-droplet"></i>
@@ -756,8 +966,8 @@ export default function App() {
                 onClick={() => setActiveTab('pump')}
                 className={`flex-1 py-3 px-2 sm:px-4 font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
                   activeTab === 'pump'
-                    ? 'text-teal-700 border-b-2 border-teal-600 bg-white shadow-sm'
-                    : 'text-slate-500 hover:text-teal-700 border-b-2 border-transparent hover:bg-slate-100'
+                    ? 'text-teal-700 dark:text-teal-300 border-b-2 border-teal-600 dark:border-teal-400 bg-white dark:bg-slate-900 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 border-b-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <i className="fa-solid fa-calculator"></i>
@@ -784,7 +994,9 @@ export default function App() {
                 }
                 onDeleteMed={handleDeleteMedication}
                 onPrintSyringeLabel={handlePrintSyringeLabel}
+                onToggleStopMed={handleToggleStopMed}
                 onReorderMeds={handleReorderMeds}
+                onOpenShiftPrintModal={handleOpenShiftPrintModal}
               />
             </div>
 
@@ -857,12 +1069,23 @@ export default function App() {
         onClose={() => setSyringeModalState({ isOpen: false, med: null })}
         onPrintHour={handlePrintSyringeWithHour}
         onPrintBatch={handlePrintSyringeBatch}
+        onOpenShiftModal={handleOpenShiftPrintModal}
       />
 
-      {/* Hidden print templates for Labels */}
-      <PrintTemplates
-        pumpLabelData={pumpLabelData}
-        syringeLabels={syringeLabels}
+      <ShiftSyringePrintModal
+        isOpen={shiftPrintModalState.isOpen}
+        initialShift={shiftPrintModalState.shift}
+        initialScope={shiftPrintModalState.scope}
+        patientName={currentBedData.patient.name}
+        patientRM={currentBedData.patient.rm}
+        currentBed={currentBed}
+        medications={currentBedData.medications || []}
+        dayBeds={dayBeds}
+        beds={beds}
+        onClose={() =>
+          setShiftPrintModalState((prev) => ({ ...prev, isOpen: false }))
+        }
+        onPrintLabels={handlePrintShiftLabels}
       />
     </div>
   );
