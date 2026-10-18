@@ -19,6 +19,8 @@ interface PatientInfoCardProps {
   onPrintOperan: () => void;
   onOpenTransferModal: () => void;
   onDischargePatient: () => void;
+  onOpenAllOperanModal?: () => void;
+  onOpenAllDietModal?: () => void;
 }
 
 type ModalType =
@@ -40,6 +42,8 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
   onPrintOperan,
   onOpenTransferModal,
   onDischargePatient,
+  onOpenAllOperanModal,
+  onOpenAllDietModal,
 }) => {
   // Modal State
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -401,16 +405,38 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
 
             <button
               onClick={onPrintOperan}
-              className="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 hover:text-indigo-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-2 shadow-sm cursor-pointer"
+              className="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-2 shadow-sm cursor-pointer"
               title="Cetak lembar operan pasien ini"
             >
               <i className="fa-solid fa-print"></i>
-              <span>Cetak Operan</span>
+              <span>Cetak Operan Bed Ini</span>
             </button>
+
+            {onOpenAllOperanModal && (
+              <button
+                onClick={onOpenAllOperanModal}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Buka rekap operan asuhan keperawatan semua pasien ICU"
+              >
+                <i className="fa-solid fa-clipboard-user"></i>
+                <span>Operan Semua Pasien</span>
+              </button>
+            )}
+
+            {onOpenAllDietModal && (
+              <button
+                onClick={onOpenAllDietModal}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Buka rekap diet dan gizi semua pasien untuk bagian gizi / dapur"
+              >
+                <i className="fa-solid fa-utensils"></i>
+                <span>Rekap Gizi (PDF)</span>
+              </button>
+            )}
 
             <button
               onClick={onOpenTransferModal}
-              className="bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 hover:text-amber-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800 transition flex items-center gap-2 shadow-sm cursor-pointer"
+              className="bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800 transition flex items-center gap-2 shadow-sm cursor-pointer"
               title="Pindah ruangan/bed pasien tanpa ketik ulang"
             >
               <i className="fa-solid fa-truck-medical"></i>
@@ -419,7 +445,7 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
 
             <button
               onClick={onDischargePatient}
-              className="bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 hover:text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 transition flex items-center gap-2 shadow-sm cursor-pointer"
+              className="bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 transition flex items-center gap-2 shadow-sm cursor-pointer"
               title="Kosongkan bed jika pasien pulang/pindah"
             >
               <i className="fa-solid fa-person-walking-arrow-right"></i>

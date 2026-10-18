@@ -9,6 +9,7 @@ interface DietSectionProps {
   onDeleteDiet: (id: string) => void;
   onToggleDietHour: (id: string, hour: string) => void;
   onReorderDiets?: (newDiets: PatientDietItem[]) => void;
+  onOpenAllDietModal?: () => void;
 }
 
 export const DietSection: React.FC<DietSectionProps> = ({
@@ -18,6 +19,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
   onDeleteDiet,
   onToggleDietHour,
   onReorderDiets,
+  onOpenAllDietModal,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -137,13 +139,27 @@ export const DietSection: React.FC<DietSectionProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="print-hidden bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-        >
-          <i className="fa-solid fa-plus text-[10px]"></i>
-          <span>Tambah Diet</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onOpenAllDietModal && (
+            <button
+              onClick={onOpenAllDietModal}
+              className="print-hidden bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+              title="Ekspor rekapitulasi data diet semua pasien ke PDF untuk bagian gizi / dapur"
+            >
+              <i className="fa-solid fa-file-pdf text-amber-600 dark:text-amber-400"></i>
+              <span className="hidden sm:inline">Ekspor PDF Gizi</span>
+              <span className="sm:hidden">PDF Gizi</span>
+            </button>
+          )}
+
+          <button
+            onClick={openAddModal}
+            className="print-hidden bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <i className="fa-solid fa-plus text-[10px]"></i>
+            <span>Tambah Diet</span>
+          </button>
+        </div>
       </div>
 
       {/* Content List */}

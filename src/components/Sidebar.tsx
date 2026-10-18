@@ -16,6 +16,8 @@ interface SidebarProps {
     shift: 'pagi' | 'sore' | 'malam' | 'all',
     scope?: 'current' | 'all'
   ) => void;
+  onOpenAllOperanModal?: () => void;
+  onOpenAllDietModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,6 +31,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onUndoCopy,
   undoSeconds,
   onOpenShiftPrintModal,
+  onOpenAllOperanModal,
+  onOpenAllDietModal,
 }) => {
   return (
     <aside className="w-full md:w-64 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 shrink-0 h-fit md:sticky md:top-24 md:max-h-[calc(100vh-7rem)] overflow-y-auto custom-scrollbar z-30 transition-colors">
@@ -103,6 +107,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </button>
 
       <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        {onOpenAllOperanModal && (
+          <button
+            onClick={onOpenAllOperanModal}
+            className="w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            title="Buka rekapitulasi operan asuhan keperawatan semua pasien ICU (format SBAR & cetak)"
+          >
+            <i className="fa-solid fa-clipboard-user text-indigo-200"></i>
+            <span>Operan Semua Pasien</span>
+          </button>
+        )}
+
+        {onOpenAllDietModal && (
+          <button
+            onClick={onOpenAllDietModal}
+            className="w-full text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            title="Ekspor dan cetak rekapitulasi diet seluruh pasien ICU ke PDF untuk bagian gizi / dapur"
+          >
+            <i className="fa-solid fa-utensils text-amber-200"></i>
+            <span>Rekap Diet Gizi (PDF)</span>
+          </button>
+        )}
+
         {onOpenShiftPrintModal && (
           <button
             onClick={() => onOpenShiftPrintModal('pagi', 'all')}
@@ -128,7 +154,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full text-xs bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-semibold py-2.5 px-3 rounded-lg border border-red-200 dark:border-red-800 transition flex items-center justify-center gap-2 shadow-sm cursor-pointer animate-pulse"
           >
             <i className="fa-solid fa-rotate-left"></i>
-            <span>Batal Salin ({undoSeconds}s)</span>
+            <span>
+              Batal Salin ({Math.floor(undoSeconds / 60)}:{(undoSeconds % 60).toString().padStart(2, '0')})
+            </span>
           </button>
         )}
       </div>

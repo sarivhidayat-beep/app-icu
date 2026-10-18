@@ -41,11 +41,19 @@ import {
   SyringePrintModal,
   ShiftSyringePrintModal,
 } from './components/Modals';
+import { AllPatientsHandoverModal } from './components/AllPatientsHandoverModal';
+import { AllPatientsDietModal } from './components/AllPatientsDietModal';
 import {
   printSyringeLabelsIsolated,
   printPumpLabelIsolated,
   SyringeLabelPrintData,
 } from './utils/printLabel';
+import {
+  FeedbackSettings,
+  getSavedFeedbackSettings,
+  saveFeedbackSettings,
+  triggerFeedback,
+} from './utils/feedback';
 
 function getLocalDateString() {
   const now = new Date();
@@ -88,6 +96,16 @@ export default function App() {
 
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => !prev);
+  };
+
+  // Sound & Haptic Feedback Settings State & Persistence
+  const [feedbackSettings, setFeedbackSettings] = useState<FeedbackSettings>(
+    getSavedFeedbackSettings
+  );
+
+  const handleUpdateFeedbackSettings = (newSettings: FeedbackSettings) => {
+    setFeedbackSettings(newSettings);
+    saveFeedbackSettings(newSettings);
   };
 
   // Undo copy state
@@ -145,6 +163,12 @@ export default function App() {
     shift: 'pagi',
     scope: 'current',
   });
+
+  // Operan Semua Pasien Modal state
+  const [isAllOperanModalOpen, setIsAllOperanModalOpen] = useState(false);
+
+  // Rekapitulasi Diet Semua Pasien Modal state (Gizi & Dapur)
+  const [isAllDietModalOpen, setIsAllDietModalOpen] = useState(false);
 
   // Helper for quick alert dialog
   const showAlert = (title: string, message: string) => {
@@ -317,10 +341,13 @@ export default function App() {
     if (med.isStopped) return; // Jangan izinkan check jika obat di-stop
     const checked = med.checkedHours || [];
 
-    if (checked.includes(hour)) {
+    const isAlreadyChecked = checked.includes(hour);
+    if (isAlreadyChecked) {
       med.checkedHours = checked.filter((h) => h !== hour);
+      triggerFeedback('uncheck', feedbackSettings);
     } else {
       med.checkedHours = [...checked, hour];
+      triggerFeedback('check', feedbackSettings);
     }
     meds[medIndex] = med;
 
@@ -603,8 +630,8 @@ export default function App() {
 
         saveAllBedsData(copied);
 
-        // Start 60s undo timer
-        setUndoSeconds(60);
+        // Start 60-minute (3600s) undo timer
+        setUndoSeconds(3600);
         if (undoTimerRef.current) clearInterval(undoTimerRef.current);
         undoTimerRef.current = setInterval(() => {
           setUndoSeconds((prev) => {
@@ -619,7 +646,7 @@ export default function App() {
 
         showAlert(
           'Berhasil Menyalin',
-          'Data berhasil disalin! Anda memiliki 60 detik untuk membatalkan jika terjadi kesalahan.'
+          'Data berhasil disalin! Anda memiliki 1 jam untuk membatalkan jika terjadi kesalahan.'
         );
       }
     );
@@ -670,12 +697,14 @@ export default function App() {
   };
 
   const handleToggleDietHour = (id: string, hour: string) => {
+    let actionType: 'check' | 'uncheck' = 'check';
     const newBedData = {
       ...currentBedData,
       diets: (currentBedData.diets || []).map((d) => {
         if (d.id !== id) return d;
         const currentChecked = d.checkedHours || [];
         const isChecked = currentChecked.includes(hour);
+        actionType = isChecked ? 'uncheck' : 'check';
         return {
           ...d,
           checkedHours: isChecked
@@ -684,6 +713,7 @@ export default function App() {
         };
       }),
     };
+    triggerFeedback(actionType, feedbackSettings);
     saveBedChanges(currentBed, newBedData);
   };
 
@@ -725,12 +755,14 @@ export default function App() {
   };
 
   const handleToggleInfusionHour = (id: string, hour: string) => {
+    let actionType: 'check' | 'uncheck' = 'check';
     const newBedData = {
       ...currentBedData,
       infusions: (currentBedData.infusions || []).map((inf) => {
         if (inf.id !== id) return inf;
         const currentChecked = inf.checkedHours || [];
         const isChecked = currentChecked.includes(hour);
+        actionType = isChecked ? 'uncheck' : 'check';
         return {
           ...inf,
           checkedHours: isChecked
@@ -739,6 +771,7 @@ export default function App() {
         };
       }),
     };
+    triggerFeedback(actionType, feedbackSettings);
     saveBedChanges(currentBed, newBedData);
   };
 
@@ -856,7 +889,8 @@ export default function App() {
         cloudStatus={cloudStatus}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
-        onOpenShiftPrintModal={handleOpenShiftPrintModal}
+        feedbackSettings={feedbackSettings}
+        onUpdateFeedbackSettings={handleUpdateFeedbackSettings}
       />
 
       <div className="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col md:flex-row gap-5">
@@ -871,6 +905,8 @@ export default function App() {
           onUndoCopy={handleUndoCopy}
           undoSeconds={undoSeconds}
           onOpenShiftPrintModal={handleOpenShiftPrintModal}
+          onOpenAllOperanModal={() => setIsAllOperanModalOpen(true)}
+          onOpenAllDietModal={() => setIsAllDietModalOpen(true)}
         />
 
         <main className="flex-1 flex flex-col gap-5 min-w-0">
@@ -911,6 +947,8 @@ export default function App() {
             onPrintOperan={handlePrintOperan}
             onOpenTransferModal={() => setIsTransferModalOpen(true)}
             onDischargePatient={handleDischargePatient}
+            onOpenAllOperanModal={() => setIsAllOperanModalOpen(true)}
+            onOpenAllDietModal={() => setIsAllDietModalOpen(true)}
           />
 
           {/* Section Diet / Makanan & Infus Aktif */}
@@ -922,6 +960,7 @@ export default function App() {
               onDeleteDiet={handleDeleteDiet}
               onToggleDietHour={handleToggleDietHour}
               onReorderDiets={handleReorderDiets}
+              onOpenAllDietModal={() => setIsAllDietModalOpen(true)}
             />
             <InfusionSection
               infusions={currentBedData.infusions || []}
@@ -1086,6 +1125,22 @@ export default function App() {
           setShiftPrintModalState((prev) => ({ ...prev, isOpen: false }))
         }
         onPrintLabels={handlePrintShiftLabels}
+      />
+
+      <AllPatientsHandoverModal
+        isOpen={isAllOperanModalOpen}
+        onClose={() => setIsAllOperanModalOpen(false)}
+        beds={beds}
+        dayBeds={dayBeds}
+        currentDateStr={currentDateStr}
+      />
+
+      <AllPatientsDietModal
+        isOpen={isAllDietModalOpen}
+        onClose={() => setIsAllDietModalOpen(false)}
+        beds={beds}
+        dayBeds={dayBeds}
+        currentDateStr={currentDateStr}
       />
     </div>
   );

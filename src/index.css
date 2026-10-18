@@ -2,6 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-slate-750: #233044;
+  --color-slate-850: #131c2d;
+  --color-slate-925: #0a101d;
+}
+
 html.dark {
   color-scheme: dark;
 }
@@ -17,6 +23,13 @@ html.dark select {
   color: #f1f5f9;
   background-color: #1e293b;
   border-color: #334155;
+}
+
+html.dark input[type="checkbox"],
+html.dark input[type="radio"] {
+  accent-color: #0d9488;
+  background-color: #1e293b;
+  border-color: #475569;
 }
 
 html.dark input::placeholder,
