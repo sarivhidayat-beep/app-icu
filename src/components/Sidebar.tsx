@@ -12,10 +12,6 @@ interface SidebarProps {
   onCopyPrevDay: () => void;
   onUndoCopy: () => void;
   undoSeconds: number | null;
-  onOpenShiftPrintModal?: (
-    shift: 'pagi' | 'sore' | 'malam' | 'all',
-    scope?: 'current' | 'all'
-  ) => void;
   onOpenAllOperanModal?: () => void;
   onOpenAllDietModal?: () => void;
 }
@@ -30,7 +26,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCopyPrevDay,
   onUndoCopy,
   undoSeconds,
-  onOpenShiftPrintModal,
   onOpenAllOperanModal,
   onOpenAllDietModal,
 }) => {
@@ -126,17 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <i className="fa-solid fa-utensils text-amber-200"></i>
             <span>Rekap Diet Gizi (PDF)</span>
-          </button>
-        )}
-
-        {onOpenShiftPrintModal && (
-          <button
-            onClick={() => onOpenShiftPrintModal('pagi', 'all')}
-            className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-            title="Cetak seluruh etiket spuit pasien di semua ruangan berdasarkan shift (Pagi, Sore, Malam)"
-          >
-            <i className="fa-solid fa-print"></i>
-            <span>Cetak Spuit Semua Pasien</span>
           </button>
         )}
 

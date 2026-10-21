@@ -204,23 +204,24 @@ export const FREQUENCY_SUGGESTED_HOURS: Record<string, string[]> = {
   '2x1': ['08.00', '20.00'],
   '2x1 (Tiap 12 jam)': ['08.00', '20.00'],
   'Tiap 12 Jam': ['08.00', '20.00'],
-  '3x1': ['08.00', '16.00', '24.00'],
-  '3x1 (Tiap 8 jam)': ['08.00', '16.00', '24.00'],
-  'Tiap 8 Jam': ['08.00', '16.00', '24.00'],
-  '4x1': ['06.00', '12.00', '18.00', '24.00'],
-  '4x1 (Tiap 6 jam)': ['06.00', '12.00', '18.00', '24.00'],
-  'Tiap 6 Jam': ['06.00', '12.00', '18.00', '24.00'],
-  'Tiap 4 Jam': ['08.00', '12.00', '16.00', '20.00', '24.00', '04.00']
+  '3x1': ['08.00', '16.00', '00.00'],
+  '3x1 (Tiap 8 jam)': ['08.00', '16.00', '00.00'],
+  'Tiap 8 Jam': ['08.00', '16.00', '00.00'],
+  '4x1': ['06.00', '12.00', '18.00', '00.00'],
+  '4x1 (Tiap 6 jam)': ['06.00', '12.00', '18.00', '00.00'],
+  'Tiap 6 Jam': ['06.00', '12.00', '18.00', '00.00'],
+  'Tiap 4 Jam': ['08.00', '12.00', '16.00', '20.00', '00.00', '04.00']
 };
 
 export const COMMON_MED_NOTES = [
   'Skin test dulu',
-  'Drip dalam 100 cc PZ habis 1 jam',
-  'Bolus pelan 3-5 menit',
-  'Encerkan dengan Aquabidest',
+  'Skin test Negatif',
+  'Tapp Off',
+  'Hari ke',
+  'Drip dalam PZ 100 cc',
+  'Habis dalam',
+  'Stop jika tensi < 100',
   'Stop jika TD < 90/60',
-  'Berikan sesudah makan',
-  'Bilas NaCl setelah injeksi',
   'Periksa GDS sebelum pemberian'
 ];
 
@@ -325,6 +326,14 @@ export function calculatePostOpInfo(opDateStr?: string, targetDateStr?: string):
   }
 }
 
+export function getLocalDateString(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Format tanggal YYYY-MM-DD ke format Indonesia DD/MM/YYYY
  */
@@ -355,6 +364,9 @@ export const DEFAULT_INVASIVE_TYPES = [
   'DC/Kateter',
   'CVC',
   'ETT',
+  'Trakeostomi Tube',
+  'Drain',
+  'EVD',
   'Lainnya'
 ];
 
@@ -407,7 +419,7 @@ export function checkInvasiveReplacement(
       needsReplacement: true,
       daysInstalled: days,
       maxDays,
-      message: `Waktunya Ganti! (${days} hari, maks ${maxDays} hari)`
+      message: `Waktunya Ganti Cuy! (${days} hari, maks ${maxDays} hari)`
     };
   }
 

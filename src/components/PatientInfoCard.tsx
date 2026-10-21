@@ -20,7 +20,6 @@ interface PatientInfoCardProps {
   onOpenTransferModal: () => void;
   onDischargePatient: () => void;
   onOpenAllOperanModal?: () => void;
-  onOpenAllDietModal?: () => void;
 }
 
 type ModalType =
@@ -43,7 +42,6 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
   onOpenTransferModal,
   onDischargePatient,
   onOpenAllOperanModal,
-  onOpenAllDietModal,
 }) => {
   // Modal State
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -420,17 +418,6 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
               >
                 <i className="fa-solid fa-clipboard-user"></i>
                 <span>Operan Semua Pasien</span>
-              </button>
-            )}
-
-            {onOpenAllDietModal && (
-              <button
-                onClick={onOpenAllDietModal}
-                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="Buka rekap diet dan gizi semua pasien untuk bagian gizi / dapur"
-              >
-                <i className="fa-solid fa-utensils"></i>
-                <span>Rekap Gizi (PDF)</span>
               </button>
             )}
 
@@ -1271,14 +1258,15 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     'Syok Septik',
-                    'Sepsis ec Pneumonia',
+                    'Pneumonia',
                     'Post Laparatomi Eksplorasi',
-                    'ARDS',
+                    'Post Craniotomy',
                     'CKD on HD',
-                    'Stroke Infark',
-                    'ICH ec Trauma',
+                    'Post EVD',
+                    'EDH',
+                    'SDH',
                     'KAD (Ketoasidosis Diabetik)',
-                    'STEMI / NSTEMI',
+                    'Post Op Excici Tumor',
                   ].map((diag) => (
                     <button
                       key={diag}
@@ -1365,13 +1353,13 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     'Room Air (SpO2 98%)',
-                    'O2 Nasal 3 lpm',
                     'O2 Nasal 4 lpm',
+                    'O2 Simple Mask 6 lpm',
                     'NRM 10 lpm',
                     'NRM 12 lpm',
                     'HFNC (FiO2 50%, Flow 40)',
-                    'Ventilator Mode SIMV',
-                    'Ventilator Mode CPAP/PS',
+                    'Ventilator Mode Bipap',
+                    'Ventilator Mode CPAP/PSV',
                     'Ventilator Mode PCV',
                     'T-Piece O2 8 lpm',
                   ].map((mode) => (
@@ -1660,14 +1648,14 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    'Alergi Ceftriaxone',
-                    'Alergi Penisilin',
-                    'Alergi Obat NSAID',
-                    'Tidak Ada Riwayat Alergi',
+                    'Alergi',
+                    'Cek Lab',
+                    'Foto Torax',
+                    'weaning Ventilator',
                     'Puasa Pre-Op',
-                    'Restrain Fisik Pasif',
-                    'Awasi TTV Ketat',
-                    'Posisi Semi Fowler 30-45°',
+                    'Konsul',
+                    'Setting EVD',
+                    'Head Up 30-45°',
                     'Rencana Ekstubasi Hari Ini',
                   ].map((tag) => (
                     <button

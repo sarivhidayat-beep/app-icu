@@ -410,7 +410,7 @@ export const MedicationModal: React.FC<MedicationModalProps> = ({
             />
             {/* Quick tags catatan */}
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {COMMON_MED_NOTES.slice(0, 5).map((n) => (
+              {COMMON_MED_NOTES.map((n) => (
                 <button
                   key={n}
                   type="button"

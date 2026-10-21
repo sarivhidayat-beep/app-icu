@@ -1,6 +1,6 @@
 {
-  "summary": "Rencana implementasi fitur Opsi Operan yang Merangkum Asuhan Keperawatan Semua Pasien ICU RSUD Blambangan, mencakup modal preview interaktif, format standar SBAR dan matriks shift, cetak dokumen resmi, dan salin rekap pesan dinas perawat.",
-  "updatedAt": "2026-10-16T10:28:32.782801645Z",
+  "summary": "Sistem notifikasi visual jadwal injeksi (waktu pemberian obat) telah selesai diimplementasikan secara real-time pada tabel jadwal injeksi ICU dengan penanda jam saat ini (due now) beranimasi pulse, penanda jadwal terlewat (overdue), dan highlight kolom jam.",
+  "updatedAt": "2026-10-20T09:25:05.844639490Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PatientDietItem } from '../types';
-import { HOURS_START_08, sortHoursFrom08 } from '../constants';
+import { HOURS_START_08, sortHoursFrom08, formatDateID, getLocalDateString } from '../constants';
 
 interface DietSectionProps {
   diets: PatientDietItem[];
@@ -10,6 +10,7 @@ interface DietSectionProps {
   onToggleDietHour: (id: string, hour: string) => void;
   onReorderDiets?: (newDiets: PatientDietItem[]) => void;
   onOpenAllDietModal?: () => void;
+  currentDateStr?: string;
 }
 
 export const DietSection: React.FC<DietSectionProps> = ({
@@ -20,6 +21,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
   onToggleDietHour,
   onReorderDiets,
   onOpenAllDietModal,
+  currentDateStr,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,6 +31,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
   const [name, setName] = useState('');
   const [route, setRoute] = useState('');
   const [notes, setNotes] = useState('');
+  const [orderDate, setOrderDate] = useState('');
   const [selectedHours, setSelectedHours] = useState<string[]>([]);
   const [customHourInput, setCustomHourInput] = useState('');
 
@@ -58,6 +61,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
     setName('');
     setRoute('NGT');
     setNotes('');
+    setOrderDate(currentDateStr || getLocalDateString());
     setSelectedHours(sortHoursFrom08(['08.00', '11.00', '14.00', '17.00', '20.00', '23.00']));
     setCustomHourInput('');
     setIsModalOpen(true);
@@ -68,6 +72,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
     setName(item.name || '');
     setRoute(item.route || '');
     setNotes(item.notes || '');
+    setOrderDate(item.orderDate || currentDateStr || getLocalDateString());
     setSelectedHours(sortHoursFrom08(item.hours || []));
     setCustomHourInput('');
     setIsModalOpen(true);
@@ -106,6 +111,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
         name: name.trim(),
         route: route.trim(),
         notes: notes.trim(),
+        orderDate: orderDate.trim() || undefined,
         hours: sortHoursFrom08(selectedHours),
       });
     } else {
@@ -113,6 +119,7 @@ export const DietSection: React.FC<DietSectionProps> = ({
         name: name.trim(),
         route: route.trim(),
         notes: notes.trim(),
+        orderDate: orderDate.trim() || undefined,
         hours: sortHoursFrom08(selectedHours),
         checkedHours: [],
       });
@@ -215,6 +222,12 @@ export const DietSection: React.FC<DietSectionProps> = ({
                       {diet.route && (
                         <span className="text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
                           {diet.route}
+                        </span>
+                      )}
+                      {diet.orderDate && (
+                        <span className="text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800/80 flex items-center gap-1 shadow-2xs">
+                          <i className="fa-regular fa-calendar text-[9px] text-amber-600 dark:text-amber-400"></i>
+                          <span>Order: {formatDateID(diet.orderDate)}</span>
                         </span>
                       )}
                     </div>
@@ -370,6 +383,48 @@ export const DietSection: React.FC<DietSectionProps> = ({
                     className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
+              </div>
+
+              {/* Tanggal Permintaan Order Diet */}
+              <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 shadow-2xs">
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                  <label className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                    <i className="fa-regular fa-calendar-days text-amber-600 dark:text-amber-400"></i>
+                    <span>Tanggal Permintaan Order Diet</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setOrderDate(currentDateStr || getLocalDateString())}
+                      className="text-[10px] bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-semibold transition border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
+                    >
+                      Hari Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(currentDateStr || getLocalDateString());
+                        d.setDate(d.getDate() + 1);
+                        const yr = d.getFullYear();
+                        const mo = String(d.getMonth() + 1).padStart(2, '0');
+                        const dy = String(d.getDate()).padStart(2, '0');
+                        setOrderDate(`${yr}-${mo}-${dy}`);
+                      }}
+                      className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white px-2 py-0.5 rounded font-bold transition cursor-pointer shadow-2xs"
+                    >
+                      Besok (+1)
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="date"
+                  value={orderDate}
+                  onChange={(e) => setOrderDate(e.target.value)}
+                  className="w-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none cursor-pointer"
+                />
+                <p className="text-[11px] text-amber-900/80 dark:text-amber-300/80 mt-1">
+                  Tanggal order diet ini mulai diminta berlaku untuk pasien (format: <strong>{formatDateID(orderDate) || '-'}</strong>)
+                </p>
               </div>
 
               {/* Opsi Jam Diet */}

@@ -904,7 +904,6 @@ export default function App() {
           onCopyPrevDay={handleCopyPrevDay}
           onUndoCopy={handleUndoCopy}
           undoSeconds={undoSeconds}
-          onOpenShiftPrintModal={handleOpenShiftPrintModal}
           onOpenAllOperanModal={() => setIsAllOperanModalOpen(true)}
           onOpenAllDietModal={() => setIsAllDietModalOpen(true)}
         />
@@ -948,7 +947,6 @@ export default function App() {
             onOpenTransferModal={() => setIsTransferModalOpen(true)}
             onDischargePatient={handleDischargePatient}
             onOpenAllOperanModal={() => setIsAllOperanModalOpen(true)}
-            onOpenAllDietModal={() => setIsAllDietModalOpen(true)}
           />
 
           {/* Section Diet / Makanan & Infus Aktif */}
@@ -961,6 +959,7 @@ export default function App() {
               onToggleDietHour={handleToggleDietHour}
               onReorderDiets={handleReorderDiets}
               onOpenAllDietModal={() => setIsAllDietModalOpen(true)}
+              currentDateStr={currentDateStr}
             />
             <InfusionSection
               infusions={currentBedData.infusions || []}
@@ -1036,6 +1035,7 @@ export default function App() {
                 onToggleStopMed={handleToggleStopMed}
                 onReorderMeds={handleReorderMeds}
                 onOpenShiftPrintModal={handleOpenShiftPrintModal}
+                currentDateStr={currentDateStr}
               />
             </div>
 

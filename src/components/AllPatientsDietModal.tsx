@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DayBedsData, BedData } from '../types';
-import { formatDateID, sortHoursFrom08 } from '../constants';
+import { formatDateID, sortHoursFrom08, getLocalDateString } from '../constants';
+import { getBedsForDate } from '../services/firebase';
 
 interface AllPatientsDietModalProps {
   isOpen: boolean;
@@ -17,12 +18,72 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
   dayBeds,
   currentDateStr,
 }) => {
+  const [orderDate, setOrderDate] = useState<string>(() => currentDateStr || getLocalDateString());
   const [showOnlyOccupied, setShowOnlyOccupied] = useState(true);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
+  const [targetDateBeds, setTargetDateBeds] = useState<DayBedsData | null>(null);
+  const [isLoadingTargetDate, setIsLoadingTargetDate] = useState(false);
+  const [dataSource, setDataSource] = useState<'current_beds' | 'target_date_beds'>('current_beds');
+
+  // Sinkronkan orderDate saat currentDateStr berubah
+  useEffect(() => {
+    if (currentDateStr) {
+      setOrderDate(currentDateStr);
+    }
+  }, [currentDateStr]);
+
+  // Muat data jika tanggal order dipilih berbeda dari currentDateStr
+  useEffect(() => {
+    if (orderDate && orderDate !== currentDateStr) {
+      setIsLoadingTargetDate(true);
+      getBedsForDate(orderDate)
+        .then((data) => {
+          setTargetDateBeds(data);
+        })
+        .catch(() => {
+          setTargetDateBeds(null);
+        })
+        .finally(() => {
+          setIsLoadingTargetDate(false);
+        });
+    } else {
+      setTargetDateBeds(null);
+      setDataSource('current_beds');
+    }
+  }, [orderDate, currentDateStr]);
 
   if (!isOpen) return null;
 
-  const formattedDate = formatDateID(currentDateStr);
+  const getOffsetDateString = (offsetDays: number) => {
+    const base = new Date();
+    base.setDate(base.getDate() + offsetDays);
+    const yr = base.getFullYear();
+    const mo = String(base.getMonth() + 1).padStart(2, '0');
+    const dy = String(base.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${dy}`;
+  };
+
+  const formattedOrderDate = formatDateID(orderDate);
+  const formattedOrderDateLong = (() => {
+    try {
+      const parts = orderDate.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        return d.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+      }
+    } catch {}
+    return formattedOrderDate;
+  })();
+
+  const effectiveDayBeds =
+    dataSource === 'target_date_beds' && targetDateBeds
+      ? targetDateBeds
+      : dayBeds;
 
   // Helper memeriksa pasien aktif
   const isBedOccupied = (bedData?: BedData) => {
@@ -108,10 +169,10 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
 
   // Bed yang ditampilkan
   const displayedBeds = showOnlyOccupied
-    ? beds.filter((b) => isBedOccupied(dayBeds[b]))
+    ? beds.filter((b) => isBedOccupied(effectiveDayBeds[b]))
     : beds;
 
-  const occupiedBedsCount = beds.filter((b) => isBedOccupied(dayBeds[b])).length;
+  const occupiedBedsCount = beds.filter((b) => isBedOccupied(effectiveDayBeds[b])).length;
 
   // Fungsi Cetak / Unduh PDF Terisolasi (HANYA 3 KOLOM: Bed Pasien, Nama, Menu Diet)
   const handlePrintDietPdf = () => {
@@ -132,7 +193,7 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
 
     const rowsHtml = displayedBeds
       .map((bedName) => {
-        const bedData = dayBeds[bedName];
+        const bedData = effectiveDayBeds[bedName];
         const isOcc = isBedOccupied(bedData);
 
         if (!isOcc) {
@@ -165,7 +226,7 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Rekap_Gizi_ICU_RSUD_Blambangan_${currentDateStr}</title>
+  <title>Rekap_Gizi_ICU_RSUD_Blambangan_${orderDate}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -292,7 +353,8 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
     </div>
     <div>
       <div class="doc-title">REKAP GIZI PASIEN</div>
-      <div class="doc-meta">Tanggal: <strong>${formattedDate}</strong></div>
+      <div class="doc-meta">Tanggal Permintaan Order: <strong>${formattedOrderDateLong}</strong></div>
+      <div class="doc-meta" style="font-size: 10px; color: #475569;">(${formattedOrderDate}) &middot; Tanggal Cetak: ${formatDateID(getLocalDateString())}</div>
     </div>
   </div>
 
@@ -348,11 +410,11 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
   // Fungsi Salin WhatsApp HANYA 3 DATA: Bed Pasien, Nama, Menu Diet
   const handleCopyDietReport = () => {
     let report = `*REKAP GIZI PASIEN ICU RSUD BLAMBANGAN*\n`;
-    report += `📅 Tanggal: ${formattedDate}\n`;
+    report += `📅 *Tanggal Permintaan Order Diet*: ${formattedOrderDateLong} (${formattedOrderDate})\n`;
     report += `-------------------------------------\n\n`;
 
     displayedBeds.forEach((bedName) => {
-      const bedData = dayBeds[bedName];
+      const bedData = effectiveDayBeds[bedName];
       if (!isBedOccupied(bedData)) {
         if (!showOnlyOccupied) {
           report += `*Bed Pasien*: ${bedName}\n`;
@@ -398,7 +460,7 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-amber-100 mt-0.5">
-                RSUD Blambangan · Tanggal: <strong>{formattedDate}</strong>
+                RSUD Blambangan · Tanggal Permintaan Order: <strong>{formattedOrderDateLong}</strong> ({formattedOrderDate})
               </p>
             </div>
           </div>
@@ -410,6 +472,102 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
           >
             <i className="fa-solid fa-xmark text-sm"></i>
           </button>
+        </div>
+
+        {/* Panel Pengaturan & Ubah Tanggal Permintaan Order Diet */}
+        <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-850 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xs font-bold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+              <i className="fa-regular fa-calendar-days text-amber-600 dark:text-amber-400"></i>
+              <span>Tanggal Permintaan Order:</span>
+            </span>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <input
+                type="date"
+                value={orderDate}
+                onChange={(e) => setOrderDate(e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl px-2.5 py-1.5 shadow-2xs focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
+                title="Klik untuk memilih atau mengubah tanggal permintaan order diet"
+              />
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setOrderDate(getOffsetDateString(0))}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition border cursor-pointer ${
+                    orderDate === getOffsetDateString(0)
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  }`}
+                  title="Pilih tanggal hari ini"
+                >
+                  Hari Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderDate(getOffsetDateString(1))}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition border cursor-pointer ${
+                    orderDate === getOffsetDateString(1)
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                      : 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-800/80'
+                  }`}
+                  title="Pilih tanggal besok (+1 hari) untuk pemesanan diet gizi berikutnya"
+                >
+                  Besok (+1 Hari)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderDate(getOffsetDateString(2))}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition border cursor-pointer ${
+                    orderDate === getOffsetDateString(2)
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  }`}
+                  title="Pilih tanggal lusa (+2 hari)"
+                >
+                  Lusa (+2)
+                </button>
+              </div>
+            </div>
+
+            <span className="text-[11px] font-semibold text-amber-900 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-900/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+              {formattedOrderDateLong}
+            </span>
+          </div>
+
+          {/* Opsi sumber data jika tanggal terpilih berbeda dari tanggal sistem */}
+          {orderDate !== currentDateStr && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-slate-500 dark:text-slate-400 text-[11px]">Sumber Data:</span>
+              <button
+                type="button"
+                onClick={() => setDataSource('current_beds')}
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+                  dataSource === 'current_beds'
+                    ? 'bg-amber-600 text-white border-amber-600'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                }`}
+                title="Gunakan pasien yang dirawat saat ini untuk order diet tgl tersebut"
+              >
+                Pasien Saat Ini
+              </button>
+              {targetDateBeds && (
+                <button
+                  type="button"
+                  onClick={() => setDataSource('target_date_beds')}
+                  className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+                    dataSource === 'target_date_beds'
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                  }`}
+                  title="Gunakan data yang tersimpan pada tanggal terpilih"
+                >
+                  Tersimpan Tgl {formattedOrderDate}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Toolbar Ringkas */}
@@ -479,7 +637,7 @@ export const AllPatientsDietModal: React.FC<AllPatientsDietModalProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                   {displayedBeds.map((bedName) => {
-                    const bedData = dayBeds[bedName];
+                    const bedData = effectiveDayBeds[bedName];
                     const isOcc = isBedOccupied(bedData);
 
                     if (!isOcc) {

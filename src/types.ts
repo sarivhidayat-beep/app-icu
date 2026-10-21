@@ -61,6 +61,7 @@ export interface PatientDietItem {
   name: string;
   route?: string;
   notes?: string;
+  orderDate?: string; // Tanggal permintaan order diet (YYYY-MM-DD)
   hours: string[];
   checkedHours: string[];
 }

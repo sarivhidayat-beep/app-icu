@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Medication } from '../types';
 import {
   HOURS_SHIFT,
@@ -7,7 +7,56 @@ import {
   MALAM_HOURS,
   getHourShift,
   sortFlexibleHours,
+  getLocalDateString,
 } from '../constants';
+
+export type MedHourStatus = 'done' | 'due_now' | 'overdue' | 'upcoming';
+
+/**
+ * Menghitung status jam injeksi obat secara real-time berdasarkan jam saat ini.
+ * Memperhitungkan siklus 24 jam ICU RSUD Blambangan yang dimulai dari jam 08.00 pagi.
+ */
+export function getMedHourStatus(
+  hourStr: string,
+  isChecked: boolean,
+  isStopped: boolean,
+  now: Date,
+  isHistoryView: boolean
+): MedHourStatus {
+  if (isChecked) return 'done';
+  if (isStopped || isHistoryView) return 'upcoming';
+
+  let clean = hourStr.trim().replace(':', '.');
+  if (!clean.includes('.')) clean += '.00';
+  const parts = clean.split('.');
+  const rawHour = parseInt(parts[0], 10);
+  const targetHour = (isNaN(rawHour) ? 0 : rawHour) % 24;
+  const targetMinute = parseInt(parts[1], 10) || 0;
+
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  // Waktu pemberian saat ini: jam sama dengan targetHour
+  if (targetHour === currentHour) {
+    return 'due_now';
+  }
+
+  // Hitung offset menit relatif terhadap jam 08.00 (siklus dinas 24 jam ICU)
+  const getMinutesFrom08 = (hr: number, min: number): number => {
+    const totalMin = hr * 60 + min;
+    return (totalMin - 8 * 60 + 1440) % 1440;
+  };
+
+  const targetOffset = getMinutesFrom08(targetHour, targetMinute);
+  const currentOffset = getMinutesFrom08(currentHour, currentMinute);
+
+  // Jika jam saat ini telah melewati rentang jam target (+ 59 menit) dan belum diceklis
+  if (currentOffset > targetOffset + 59) {
+    return 'overdue';
+  }
+
+  return 'upcoming';
+}
 
 interface InjectionScheduleProps {
   currentBed: string;
@@ -23,9 +72,10 @@ interface InjectionScheduleProps {
     shift: 'pagi' | 'sore' | 'malam' | 'all',
     scope?: 'current' | 'all'
   ) => void;
+  currentDateStr?: string;
 }
 
-export type FilterOption = 'all' | 'pending' | 'done' | 'pagi' | 'sore' | 'malam';
+export type FilterOption = 'all' | 'pending' | 'done' | 'pagi' | 'sore' | 'malam' | 'due';
 
 export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
   currentBed,
@@ -38,7 +88,25 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
   onToggleStopMed,
   onReorderMeds,
   onOpenShiftPrintModal,
+  currentDateStr,
 }) => {
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  // Perbarui jam lokal secara real-time setiap 10 detik
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayStr = getLocalDateString();
+  const isHistoryView = Boolean(currentDateStr && currentDateStr !== todayStr);
+
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentTimeStr = `${String(currentHour).padStart(2, '0')}.${String(currentMinute).padStart(2, '0')}`;
+
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterOption>('all');
   const [sort, setSort] = useState<'default' | 'doctor_asc' | 'name_asc'>('default');
@@ -58,6 +126,19 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
     (acc, m) => acc + (m.hours || []).filter((h) => getHourShift(h) === 'malam').length,
     0
   );
+
+  // Status visual real-time jadwal injeksi untuk bed ini
+  const allActiveStatuses = isHistoryView
+    ? []
+    : activeMeds.flatMap((m) =>
+        (m.hours || []).map((h) => {
+          const isChecked = Boolean(m.checkedHours && m.checkedHours.includes(h));
+          return getMedHourStatus(h, isChecked, false, now, isHistoryView);
+        })
+      );
+  const hasAnyDueNow = allActiveStatuses.includes('due_now');
+  const hasAnyOverdue = allActiveStatuses.includes('overdue');
+  const hasAnyDueOrOverdue = hasAnyDueNow || hasAnyOverdue;
 
   // Compute filtered & sorted medications
   const indexedMeds = medications.map((med, originalIndex) => ({
@@ -98,6 +179,16 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
     }
 
     // Filter status
+    if (filter === 'due') {
+      return (
+        !med.isStopped &&
+        scheduled.some((h) => {
+          const isChecked = checked.includes(h);
+          const st = getMedHourStatus(h, isChecked, false, now, isHistoryView);
+          return st === 'due_now' || st === 'overdue';
+        })
+      );
+    }
     if (filter === 'pending') {
       return (
         scheduled.length === 0 || scheduled.some((h) => !checked.includes(h))
@@ -188,6 +279,7 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
               <option value="malam">Obat Malam (22.00 - 06.00)</option>
             </optgroup>
             <optgroup label="Status Pemberian">
+              <option value="due">⏰ Waktu Pemberian / Terlewat</option>
               <option value="pending">Belum Tercentang (Pending)</option>
               <option value="done">Sudah Selesai</option>
             </optgroup>
@@ -214,10 +306,10 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                     'current'
                   )
                 }
-                className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                className="bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                 title="Cetak etiket spuit per shift untuk pasien di bed ini"
               >
-                <i className="fa-solid fa-print text-purple-600"></i>
+                <i className="fa-solid fa-print text-purple-600 dark:text-purple-400"></i>
                 <span>Spuit Shift (Bed Ini)</span>
               </button>
 
@@ -231,10 +323,10 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                   )
                 }
                 className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="Cetak seluruh etiket spuit untuk SEMUA pasien sekaligus sesuai shift"
+                title="Cetak seluruh etiket label spuit untuk SEMUA pasien sekaligus sesuai shift"
               >
                 <i className="fa-solid fa-users"></i>
-                <span>Cetak Spuit Semua Pasien</span>
+                <span>Cetak Label Spuit Semua Pasien</span>
               </button>
             </div>
           )}
@@ -306,78 +398,6 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
             {countMalamMeds}
           </span>
         </button>
-
-        {onOpenShiftPrintModal && (
-          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
-            {filter === 'pagi' ? (
-              <>
-                <button
-                  onClick={() => onOpenShiftPrintModal('pagi', 'current')}
-                  className="bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 font-semibold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                  title="Cetak etiket spuit obat pagi untuk bed ini"
-                >
-                  <i className="fa-solid fa-print text-amber-700 dark:text-amber-400"></i>
-                  <span>Spuit Pagi ({countPagiMeds})</span>
-                </button>
-                <button
-                  onClick={() => onOpenShiftPrintModal('pagi', 'all')}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95"
-                  title="Cetak seluruh etiket spuit obat pagi untuk SEMUA pasien"
-                >
-                  <i className="fa-solid fa-users"></i>
-                  <span>Spuit Pagi (Semua Pasien)</span>
-                </button>
-              </>
-            ) : filter === 'sore' ? (
-              <>
-                <button
-                  onClick={() => onOpenShiftPrintModal('sore', 'current')}
-                  className="bg-orange-100 dark:bg-orange-950/60 hover:bg-orange-200 dark:hover:bg-orange-900/60 text-orange-900 dark:text-orange-200 border border-orange-300 dark:border-orange-800 font-semibold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                  title="Cetak etiket spuit obat sore untuk bed ini"
-                >
-                  <i className="fa-solid fa-print text-orange-700 dark:text-orange-400"></i>
-                  <span>Spuit Sore ({countSoreMeds})</span>
-                </button>
-                <button
-                  onClick={() => onOpenShiftPrintModal('sore', 'all')}
-                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95"
-                  title="Cetak seluruh etiket spuit obat sore untuk SEMUA pasien"
-                >
-                  <i className="fa-solid fa-users"></i>
-                  <span>Spuit Sore (Semua Pasien)</span>
-                </button>
-              </>
-            ) : filter === 'malam' ? (
-              <>
-                <button
-                  onClick={() => onOpenShiftPrintModal('malam', 'current')}
-                  className="bg-indigo-100 dark:bg-indigo-950/60 hover:bg-indigo-200 dark:hover:bg-indigo-900/60 text-indigo-900 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-800 font-semibold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                  title="Cetak etiket spuit obat malam untuk bed ini"
-                >
-                  <i className="fa-solid fa-print text-indigo-700 dark:text-indigo-400"></i>
-                  <span>Spuit Malam ({countMalamMeds})</span>
-                </button>
-                <button
-                  onClick={() => onOpenShiftPrintModal('malam', 'all')}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95"
-                  title="Cetak seluruh etiket spuit obat malam untuk SEMUA pasien"
-                >
-                  <i className="fa-solid fa-users"></i>
-                  <span>Spuit Malam (Semua Pasien)</span>
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => onOpenShiftPrintModal('pagi', 'all')}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-95"
-                title="Cetak etiket spuit semua pasien per shift"
-              >
-                <i className="fa-solid fa-users"></i>
-                <span>Cetak Spuit Semua Pasien</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="overflow-x-auto custom-scrollbar border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm bg-white dark:bg-slate-900">
@@ -387,23 +407,71 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
               <th className="py-3 px-3 w-56">Nama Obat & Catatan</th>
               <th className="py-3 px-2 w-28">Dosis / Frekuensi</th>
               <th className="py-3 px-2 w-20">Rute</th>
-              <th className="py-3 px-3">
-                Jam Pemberian (Centang Jika Sudah Diberikan)
-                {filter === 'pagi' && (
-                  <span className="ml-2 font-normal text-amber-700 dark:text-amber-400 normal-case">
-                    — Menampilkan jadwal shift pagi
-                  </span>
-                )}
-                {filter === 'sore' && (
-                  <span className="ml-2 font-normal text-orange-700 dark:text-orange-400 normal-case">
-                    — Menampilkan jadwal shift sore
-                  </span>
-                )}
-                {filter === 'malam' && (
-                  <span className="ml-2 font-normal text-indigo-700 dark:text-indigo-400 normal-case">
-                    — Menampilkan jadwal shift malam
-                  </span>
-                )}
+              <th
+                className={`py-3 px-3 transition-colors ${
+                  !isHistoryView && hasAnyDueNow
+                    ? 'bg-amber-100/70 dark:bg-amber-950/50 border-l border-r border-amber-300 dark:border-amber-700/60'
+                    : !isHistoryView && hasAnyOverdue
+                    ? 'bg-rose-100/60 dark:bg-rose-950/40 border-l border-r border-rose-300 dark:border-rose-800/60'
+                    : ''
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold">Jam Pemberian (Centang Jika Sudah Diberikan)</span>
+                    {filter === 'pagi' && (
+                      <span className="font-normal text-amber-700 dark:text-amber-400 normal-case hidden sm:inline">
+                        — Shift pagi
+                      </span>
+                    )}
+                    {filter === 'sore' && (
+                      <span className="font-normal text-orange-700 dark:text-orange-400 normal-case hidden sm:inline">
+                        — Shift sore
+                      </span>
+                    )}
+                    {filter === 'malam' && (
+                      <span className="font-normal text-indigo-700 dark:text-indigo-400 normal-case hidden sm:inline">
+                        — Shift malam
+                      </span>
+                    )}
+                  </div>
+                  {!isHistoryView && (
+                    <div className="flex items-center gap-2 print-hidden">
+                      {hasAnyDueNow && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-xs tracking-wider flex items-center gap-1 animate-pulse"
+                          title="Ada obat yang memasuki waktu pemberian saat ini"
+                        >
+                          <i className="fa-solid fa-bell"></i> Waktu Pemberian
+                        </span>
+                      )}
+                      {hasAnyOverdue && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs tracking-wider flex items-center gap-1"
+                          title="Ada obat jam sebelumnya yang terlewat belum diceklis"
+                        >
+                          <i className="fa-solid fa-triangle-exclamation"></i> Terlewat
+                        </span>
+                      )}
+                      <div
+                        className={`flex items-center gap-1.5 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-lg border shadow-2xs ${
+                          hasAnyDueNow
+                            ? 'text-amber-950 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 border-amber-300 dark:border-amber-700'
+                            : 'text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800'
+                        }`}
+                        title="Jam sistem lokal saat ini sebagai patokan waktu pemberian obat"
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            hasAnyDueNow ? 'bg-amber-500' : 'bg-emerald-500'
+                          } animate-pulse`}
+                        ></span>
+                        <i className="fa-regular fa-clock text-teal-600 dark:text-teal-400"></i>
+                        <span>Jam Sekarang: {currentTimeStr}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </th>
               <th className="py-3 px-2 w-32 text-center print-hidden">Aksi</th>
             </tr>
@@ -430,6 +498,8 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                       ? 'Obat Sore (15.00 - 21.00)'
                       : filter === 'malam'
                       ? 'Obat Malam (22.00 - 06.00)'
+                      : filter === 'due'
+                      ? 'Waktu Pemberian / Terlewat'
                       : search
                       ? `"${search}"`
                       : 'saat ini'}
@@ -457,6 +527,12 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                   displayHours = scheduledHours.filter(
                     (h) => !(med.checkedHours && med.checkedHours.includes(h))
                   );
+                } else if (filter === 'due') {
+                  displayHours = scheduledHours.filter((h) => {
+                    const isChecked = Boolean(med.checkedHours && med.checkedHours.includes(h));
+                    const st = getMedHourStatus(h, isChecked, false, now, isHistoryView);
+                    return st === 'due_now' || st === 'overdue';
+                  });
                 }
 
                 // Cek shift apa saja yang ada pada obat ini untuk badge indikator
@@ -465,9 +541,30 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                 const hasMalam = scheduledHours.some((h) => getHourShift(h) === 'malam');
 
                 const isStopped = Boolean(med.isStopped);
-                const finalRowBg = isStopped
-                  ? 'bg-rose-50/80 dark:bg-rose-950/40 border-l-4 border-l-rose-500'
-                  : rowBg;
+
+                // Hitung status jam untuk obat ini
+                const medHourStatuses = isStopped || isHistoryView
+                  ? []
+                  : scheduledHours.map((h) => {
+                      const isChecked = Boolean(med.checkedHours && med.checkedHours.includes(h));
+                      return {
+                        hour: h,
+                        isChecked,
+                        status: getMedHourStatus(h, isChecked, isStopped, now, isHistoryView),
+                      };
+                    });
+
+                const rowHasDueNow = medHourStatuses.some((s) => s.status === 'due_now');
+                const rowHasOverdue = medHourStatuses.some((s) => s.status === 'overdue');
+
+                let finalRowBg = rowBg;
+                if (isStopped) {
+                  finalRowBg = 'bg-rose-50/80 dark:bg-rose-950/40 border-l-4 border-l-rose-500';
+                } else if (rowHasDueNow) {
+                  finalRowBg = 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-l-amber-500';
+                } else if (rowHasOverdue) {
+                  finalRowBg = 'bg-rose-50/50 dark:bg-rose-950/20 border-l-4 border-l-rose-400';
+                }
 
                 return (
                   <tr
@@ -488,6 +585,16 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                         {isStopped && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white shadow-xs tracking-wider flex items-center gap-1">
                             <i className="fa-solid fa-ban"></i> DI-STOP
+                          </span>
+                        )}
+                        {!isStopped && rowHasDueNow && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500 text-white shadow-xs tracking-wider flex items-center gap-1 animate-pulse">
+                            <i className="fa-solid fa-bell"></i> WAKTU PEMBERIAN
+                          </span>
+                        )}
+                        {!isStopped && !rowHasDueNow && rowHasOverdue && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700 shadow-2xs flex items-center gap-1">
+                            <i className="fa-solid fa-circle-exclamation text-rose-500"></i> TERLEWAT
                           </span>
                         )}
                       </div>
@@ -542,7 +649,15 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                         {med.route}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td
+                      className={`py-3 px-3 transition-colors ${
+                        rowHasDueNow
+                          ? 'bg-amber-100/35 dark:bg-amber-950/30 border-l border-r border-amber-200/60 dark:border-amber-800/40'
+                          : rowHasOverdue
+                          ? 'bg-rose-100/25 dark:bg-rose-950/20 border-l border-r border-rose-200/50 dark:border-rose-900/40'
+                          : ''
+                      }`}
+                    >
                       {isStopped ? (
                         <div className="flex items-center gap-2 py-1">
                           <span className="px-2.5 py-1 bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 rounded-lg text-xs font-bold flex items-center gap-1.5">
@@ -563,33 +678,78 @@ export const InjectionSchedule: React.FC<InjectionScheduleProps> = ({
                             </span>
                           ) : (
                             displayHours.map((h) => {
-                              const isChecked =
-                                med.checkedHours && med.checkedHours.includes(h);
+                              const isChecked = Boolean(
+                                med.checkedHours && med.checkedHours.includes(h)
+                              );
+                              const status = getMedHourStatus(
+                                h,
+                                isChecked,
+                                isStopped,
+                                now,
+                                isHistoryView
+                              );
+
+                              let labelClasses = '';
+                              let badgeIndicator = null;
+
+                              if (isChecked) {
+                                labelClasses =
+                                  'bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-200';
+                              } else if (status === 'due_now') {
+                                labelClasses =
+                                  'bg-amber-100 dark:bg-amber-950/90 border-2 border-amber-500 dark:border-amber-400 text-amber-950 dark:text-amber-100 shadow-md ring-2 ring-amber-400/50 animate-pulse';
+                                badgeIndicator = (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase bg-amber-500 text-white px-1 py-0.2 rounded shadow-2xs ml-1">
+                                    <i className="fa-solid fa-clock text-[8px]"></i> WAKTU
+                                  </span>
+                                );
+                              } else if (status === 'overdue') {
+                                labelClasses =
+                                  'bg-rose-50 dark:bg-rose-950/70 border-2 border-rose-500 dark:border-rose-500 text-rose-900 dark:text-rose-100 ring-2 ring-rose-400/40 shadow-xs';
+                                badgeIndicator = (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 px-1 py-0.2 rounded border border-rose-300 dark:border-rose-700 ml-1">
+                                    <i className="fa-solid fa-circle-exclamation text-[8px] text-rose-500"></i> LEWAT
+                                  </span>
+                                );
+                              } else {
+                                labelClasses =
+                                  'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-100 shadow-2xs';
+                              }
+
+                              const tooltipTitle = isChecked
+                                ? `Injeksi jam ${h} telah selesai diberikan`
+                                : status === 'due_now'
+                                ? `WAKTU PEMBERIAN SAAT INI (Jam ${h}) — Klik centang setelah obat diberikan`
+                                : status === 'overdue'
+                                ? `JADWAL TERLEWAT (Jam ${h}) — Belum diceklis, segera berikan dan tandai`
+                                : `Jadwal injeksi jam ${h}`;
+
                               return (
                                 <label
                                   key={h}
-                                  className={`inline-flex items-center justify-center cursor-pointer border rounded px-1.5 py-1 shadow-sm transition ${
-                                    isChecked
-                                      ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-700'
-                                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750'
-                                  }`}
-                                  title={`Tandai injeksi jam ${h}`}
+                                  className={`inline-flex items-center justify-center cursor-pointer border rounded-lg px-2 py-1 shadow-sm transition-all select-none ${labelClasses}`}
+                                  title={tooltipTitle}
                                 >
                                   <input
                                     type="checkbox"
-                                    checked={Boolean(isChecked)}
+                                    checked={isChecked}
                                     onChange={() => onToggleHour(originalIndex, h)}
-                                    className="w-4 h-4 text-teal-600 dark:text-teal-500 rounded cursor-pointer mr-1 print:w-3 print:h-3"
+                                    className="w-4 h-4 text-teal-600 dark:text-teal-500 rounded cursor-pointer mr-1.5 focus:ring-teal-500 print:w-3 print:h-3"
                                   />
                                   <span
                                     className={`text-sm font-mono ${
                                       isChecked
                                         ? 'font-bold text-teal-700 dark:text-teal-300 line-through'
+                                        : status === 'due_now'
+                                        ? 'font-black text-amber-950 dark:text-amber-100 tracking-tight'
+                                        : status === 'overdue'
+                                        ? 'font-bold text-rose-700 dark:text-rose-300'
                                         : 'text-slate-800 dark:text-slate-100 font-semibold'
                                     }`}
                                   >
                                     {h}
                                   </span>
+                                  {badgeIndicator}
                                 </label>
                               );
                             })
